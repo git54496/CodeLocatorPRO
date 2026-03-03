@@ -4,3 +4,11 @@
 
 # Explicitly ignore doc-level Finder metadata
 doc/.DS_Store
+
+# IDE
+.idea/
+*.iml
+
+# Gradle
+.gradle/
+build/

@@ -5,18 +5,18 @@
 ## 构建
 
 ```bash
-cd /Users/yebingyue/code/baron/CodeLocatorMCP/CodeLocatorMCPAdapter
+cd /Users/yebingyue/code/baron/CodeLocatorMCP/mcp
 ./gradlew installDist
 ```
 
 产物入口：
 
-`/Users/yebingyue/code/baron/CodeLocatorMCP/CodeLocatorMCPAdapter/build/install/CodeLocatorMCPAdapter/bin/CodeLocatorMCPAdapter`
+`/Users/yebingyue/code/baron/CodeLocatorMCP/mcp/build/install/CodeLocatorMCPAdapter/bin/CodeLocatorMCPAdapter`
 
 可软链为 `codelocator-adapter`：
 
 ```bash
-ln -sf /Users/yebingyue/code/baron/CodeLocatorMCP/CodeLocatorMCPAdapter/build/install/CodeLocatorMCPAdapter/bin/CodeLocatorMCPAdapter /usr/local/bin/codelocator-adapter
+ln -sf /Users/yebingyue/code/baron/CodeLocatorMCP/mcp/build/install/CodeLocatorMCPAdapter/bin/CodeLocatorMCPAdapter /usr/local/bin/codelocator-adapter
 ```
 
 ## 命令
@@ -40,7 +40,7 @@ codelocator-adapter inspect touch --grab-id <id> --json
 {
   "mcpServers": {
     "codelocator": {
-      "command": "/Users/yebingyue/code/baron/CodeLocatorMCP/CodeLocatorMCPAdapter/build/install/CodeLocatorMCPAdapter/bin/CodeLocatorMCPAdapter",
+      "command": "/Users/yebingyue/code/baron/CodeLocatorMCP/mcp/build/install/CodeLocatorMCPAdapter/bin/CodeLocatorMCPAdapter",
       "args": ["mcp"]
     }
   }

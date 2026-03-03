@@ -1,82 +1,55 @@
-# CodeLocatorMCP
+# CodeLocatorMCP Workspace
 
-本目录包含两个核心模块：
+当前目录已按四部分拆分：
 
-## 1. CodeLocator
+1. `core`：核心 locate 代码（原 `CodeLocatorApp`）
+2. `plugin`：IDE 插件代码（原 `CodeLocatorPlugin`）
+3. `viewer`：Web Viewer 前端资源
+4. `mcp`：MCP/CLI 适配层与本地 HTTP 服务
 
-路径：`/Users/yebingyue/code/baron/CodeLocatorMCP/CodeLocator`
+## 目录说明
 
-主要功能：
-- Android 侧 UI 抓取与运行时分析能力（Activity、Fragment、View 树等）。
-- IntelliJ/Android Studio 插件形态的可视化排查工具。
-- 支持查看 View 属性、调用链路、类信息、截图与历史抓取等。
+- `core`
+  - Android 侧抓取、分析、协议模型与动作执行核心逻辑。
+- `plugin`
+  - Android Studio / IntelliJ 插件实现，依赖 `../core/CodeLocatorModel`。
+- `viewer`
+  - Viewer 前端页面（`index.html`），由 `mcp` 在本地 HTTP 服务中加载。
+- `mcp`
+  - `grab / inspect / viewer / mcp(stdio)` 统一入口。
 
-典型使用方式：
-1. 在目标 App 集成 CodeLocator SDK。
-2. 在 Android Studio 安装并打开 CodeLocator 插件。
-3. 连接设备后手动抓取页面，进行可视化排查。
-
-## 2. CodeLocatorMCPAdapter
-
-路径：`/Users/yebingyue/code/baron/CodeLocatorMCP/CodeLocatorMCPAdapter`
-
-主要功能：
-- 提供统一 CLI 内核。
-- 提供 MCP stdio 服务，供 LLM 调用。
-- 提供本地 Web Viewer，可视化抓取结果（树、截图、memAddr 定位）。
-- 支持两种输入：
-  - 实时抓取（live）
-  - 读取本地 `.codeLocator` 历史文件（file）
-
-### 构建
+## mcp 构建与使用
 
 ```bash
-cd /Users/yebingyue/code/baron/CodeLocatorMCP/CodeLocatorMCPAdapter
+cd /Users/yebingyue/code/baron/CodeLocatorMCP/mcp
 ./gradlew installDist
 ```
 
 可执行文件：
 
 ```bash
-/Users/yebingyue/code/baron/CodeLocatorMCP/CodeLocatorMCPAdapter/build/install/CodeLocatorMCPAdapter/bin/CodeLocatorMCPAdapter
+/Users/yebingyue/code/baron/CodeLocatorMCP/mcp/build/install/CodeLocatorMCPAdapter/bin/CodeLocatorMCPAdapter
 ```
 
-### 常用命令
+常用命令：
 
 ```bash
-# 1) 读取历史抓取并生成 grab_id
+# 读取历史抓取
 CodeLocatorMCPAdapter grab file --json
 
-# 2) 实时抓取（需要设备和 SDK）
+# 实时抓取
 CodeLocatorMCPAdapter grab live --json
 
-# 3) 打开 Viewer
+# 打开 Viewer
 CodeLocatorMCPAdapter viewer open --grab-id <grab_id> --json
 
-# 4) 启动 MCP 服务
+# 启动 MCP (stdio)
 CodeLocatorMCPAdapter mcp
 ```
 
-### MCP 客户端配置示例
+## 启动 Viewer 脚本
 
-```json
-{
-  "mcpServers": {
-    "codelocator": {
-      "command": "/Users/yebingyue/code/baron/CodeLocatorMCP/CodeLocatorMCPAdapter/build/install/CodeLocatorMCPAdapter/bin/CodeLocatorMCPAdapter",
-      "args": ["mcp"]
-    }
-  }
-}
+```bash
+cd /Users/yebingyue/code/baron/CodeLocatorMCP
+./start_viewer.zsh 49622
 ```
-
-## 快速排查流程
-
-1. 先获取 `grab_id`（`grab live` 或 `grab file`）。
-2. 打开 Viewer（`viewer open --grab-id ...`）。
-3. 用 MCP/CLI 调 `inspect` 系列工具补充证据：
-   - `inspect view-data`
-   - `inspect class-info`
-   - `inspect touch`
-4. 输出结论：现象、证据、根因、修复建议。
-

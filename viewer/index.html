@@ -32,6 +32,19 @@
     #stage { position:relative; flex:none; }
     #screenImg { display:block; user-select:none; -webkit-user-drag:none; }
     #overlay { position:absolute; inset:0; pointer-events:auto; cursor:crosshair; }
+    #loadingMask {
+      position: absolute;
+      inset: 0;
+      display: none;
+      align-items: center;
+      justify-content: center;
+      background: rgba(248, 251, 255, 0.72);
+      color: #2c3e57;
+      font-weight: 600;
+      z-index: 3;
+      pointer-events: none;
+    }
+    #loadingMask.show { display: flex; }
     #props { padding:12px; font-size:13px; }
     .muted { color: var(--muted); }
     pre { white-space: pre-wrap; word-break: break-word; background:#f6f8fd; border:1px solid var(--line); border-radius:8px; padding:8px; }
@@ -43,12 +56,14 @@
     <select id="grabSelect"></select>
     <label>Search</label>
     <input id="search" placeholder="memAddr/class/text" />
+    <button id="grabBtn">Grab</button>
     <button id="copyBtn">Copy memAddr</button>
     <span id="meta" class="muted"></span>
   </div>
   <div class="layout">
     <div class="panel" id="tree"></div>
     <div class="panel" id="canvasWrap">
+      <div id="loadingMask">Loading...</div>
       <div id="stage">
         <img id="screenImg" alt="screenshot" />
         <canvas id="overlay"></canvas>
@@ -76,6 +91,8 @@
     const overlay = document.getElementById('overlay');
     const canvasWrap = document.getElementById('canvasWrap');
     const stageEl = document.getElementById('stage');
+    const loadingMask = document.getElementById('loadingMask');
+    const grabBtn = document.getElementById('grabBtn');
     const ctx = overlay.getContext('2d');
     const metaEl = document.getElementById('meta');
 
@@ -94,6 +111,7 @@
     }
 
     async function loadGrab(grabId) {
+      setLoading(true);
       grabSelect.value = grabId;
       const snapRes = await fetch(`/api/grab/${grabId}/snapshot`);
       state.snapshot = await snapRes.json();
@@ -102,11 +120,22 @@
       state.hitCycle = null;
       buildGeometryIndex();
       metaEl.textContent = `${state.snapshot.meta.source} | ${state.snapshot.meta.packageName || '-'} | ${state.snapshot.meta.activity || '-'}`;
-      img.src = `/api/grab/${grabId}/screenshot`;
       img.onload = () => {
         fitImageToViewport();
         redraw();
+        setLoading(false);
       };
+      img.onerror = () => {
+        // Avoid showing stale image when current grab has no screenshot or load failed.
+        img.removeAttribute('src');
+        stageEl.style.width = '0px';
+        stageEl.style.height = '0px';
+        overlay.width = 0;
+        overlay.height = 0;
+        ctx.clearRect(0, 0, 1, 1);
+        setLoading(false);
+      };
+      img.src = `/api/grab/${grabId}/screenshot?_=${Date.now()}`;
       renderTree();
       renderProps();
     }
@@ -348,6 +377,56 @@
     });
 
     searchInput.oninput = () => renderTree();
+    grabBtn.onclick = async () => {
+      const original = grabBtn.textContent;
+      grabBtn.disabled = true;
+      grabBtn.textContent = 'Grabbing...';
+      try {
+        const res = await fetch('/api/grab-live', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: '{}'
+        });
+        const result = await res.json();
+        if (!result.success) {
+          const liveMsg = (result.error && result.error.message) || 'grab live failed';
+          const fallbackRes = await fetch('/api/grab-file-latest', { method: 'POST' });
+          const fallback = await fallbackRes.json();
+          if (!fallback.success) {
+            const fallbackMsg = (fallback.error && fallback.error.message) || 'grab file fallback failed';
+            alert(`Grab live failed: ${liveMsg}\nFallback failed: ${fallbackMsg}`);
+            return;
+          }
+          const fallbackGrabId = fallback.grabId || (fallback.data && fallback.data.grabId);
+          const listRes = await fetch('/api/grabs');
+          state.grabs = await listRes.json();
+          renderGrabOptions();
+          if (fallbackGrabId) {
+            await loadGrab(fallbackGrabId);
+            const u = new URL(location.href);
+            u.searchParams.set('grab_id', fallbackGrabId);
+            history.replaceState(null, '', u.toString());
+          }
+          alert(`Grab live failed: ${liveMsg}\nLoaded latest history file instead.`);
+          return;
+        }
+        const newGrabId = result.grabId || (result.data && result.data.grabId);
+        const listRes = await fetch('/api/grabs');
+        state.grabs = await listRes.json();
+        renderGrabOptions();
+        if (newGrabId) {
+          await loadGrab(newGrabId);
+          const u = new URL(location.href);
+          u.searchParams.set('grab_id', newGrabId);
+          history.replaceState(null, '', u.toString());
+        }
+      } catch (e) {
+        alert(`Grab failed: ${e && e.message ? e.message : e}`);
+      } finally {
+        grabBtn.disabled = false;
+        grabBtn.textContent = original;
+      }
+    };
     document.getElementById('copyBtn').onclick = async () => {
       if (!state.selected) return;
       await navigator.clipboard.writeText(state.selected.memAddr);
@@ -359,6 +438,11 @@
         if (a[i] !== b[i]) return false;
       }
       return true;
+    }
+
+    function setLoading(loading) {
+      if (loading) loadingMask.classList.add('show');
+      else loadingMask.classList.remove('show');
     }
 
     boot();

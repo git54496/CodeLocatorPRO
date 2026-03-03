@@ -121,7 +121,7 @@
 构建命令：
 
 ```bash
-cd /Users/yebingyue/code/baron/CodeLocatorMCP/CodeLocator/CodeLocatorPlugin
+cd /Users/yebingyue/code/baron/CodeLocatorMCP/plugin
 ./gradlew buildPlugin
 ```
 

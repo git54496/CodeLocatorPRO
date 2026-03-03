@@ -3,7 +3,6 @@ package com.bytedance.tools.codelocator.adapter
 import com.google.gson.JsonObject
 import com.sun.net.httpserver.HttpExchange
 import com.sun.net.httpserver.HttpServer
-import java.io.File
 import java.net.HttpURLConnection
 import java.net.InetSocketAddress
 import java.net.URL
@@ -11,7 +10,10 @@ import java.nio.file.Files
 import java.time.Duration
 import java.util.concurrent.CountDownLatch
 
-class ViewerManager(private val store: GrabStore) {
+class ViewerManager(
+    private val store: GrabStore,
+    private val adb: AdbGateway
+) {
     companion object {
         @Volatile
         private var embeddedPort: Int? = null
@@ -30,7 +32,7 @@ class ViewerManager(private val store: GrabStore) {
     }
 
     fun serve(port: Int) {
-        val server = ViewerHttpServer(store, port)
+        val server = ViewerHttpServer(store, adb, port)
         server.start()
     }
 
@@ -55,7 +57,7 @@ class ViewerManager(private val store: GrabStore) {
             val port = freePort()
             val thread = Thread(
                 {
-                    ViewerHttpServer(store, port).start()
+                    ViewerHttpServer(store, adb, port).start()
                 },
                 "codelocator-viewer-$port"
             )
@@ -134,6 +136,7 @@ class ViewerManager(private val store: GrabStore) {
 
 class ViewerHttpServer(
     private val store: GrabStore,
+    private val adb: AdbGateway,
     private val port: Int
 ) {
     fun start() {
@@ -151,6 +154,58 @@ class ViewerHttpServer(
             when {
                 path == "/api/health" -> respondJson(exchange, 200, "{\"ok\":true}")
                 path == "/api/grabs" -> respondJson(exchange, 200, Jsons.toJson(store.listGrabs()))
+                path == "/api/grab-live" -> {
+                    if (!exchange.requestMethod.equals("POST", ignoreCase = true)) {
+                        respondText(exchange, 405, "method not allowed")
+                        return
+                    }
+                    val reqBody = exchange.requestBody.bufferedReader().use { it.readText() }.trim()
+                    val deviceSerial = if (reqBody.isBlank()) {
+                        null
+                    } else {
+                        runCatching { Jsons.parseObject(reqBody).get("deviceSerial")?.asString }.getOrNull()
+                    }
+                    val result = runCatching { adb.grabUiState(deviceSerial) }
+                        .getOrElse { t ->
+                            val ex = t as? AdapterException
+                            ToolResult<Any>(
+                                success = false,
+                                error = McpError(
+                                    ex?.code ?: "INTERNAL_ERROR",
+                                    ex?.message ?: (t.message ?: "grab failed"),
+                                    ex?.details ?: emptyMap()
+                                )
+                            )
+                        }
+                    respondJson(exchange, 200, Jsons.toJson(result))
+                }
+                path == "/api/grab-file-latest" -> {
+                    if (!exchange.requestMethod.equals("POST", ignoreCase = true)) {
+                        respondText(exchange, 405, "method not allowed")
+                        return
+                    }
+                    val latest = store.latestHistoryFile()
+                    val result = if (latest == null) {
+                        ToolResult<Any>(
+                            success = false,
+                            error = McpError("INVALID_ARGUMENT", "No .codeLocator file found in ~/.codeLocator_main/historyFile")
+                        )
+                    } else {
+                        runCatching { store.importFromCodeLocatorFile(latest.absolutePath) }
+                            .getOrElse { t ->
+                                val ex = t as? AdapterException
+                                ToolResult<Any>(
+                                    success = false,
+                                    error = McpError(
+                                        ex?.code ?: "INTERNAL_ERROR",
+                                        ex?.message ?: (t.message ?: "grab file failed"),
+                                        ex?.details ?: emptyMap()
+                                    )
+                                )
+                            }
+                    }
+                    respondJson(exchange, 200, Jsons.toJson(result))
+                }
                 path.startsWith("/api/grab/") && path.endsWith("/snapshot") -> {
                     val grabId = path.removePrefix("/api/grab/").removeSuffix("/snapshot").trim('/').trim()
                     val snapshot = store.loadSnapshot(grabId)
@@ -163,12 +218,13 @@ class ViewerHttpServer(
                         respondText(exchange, 404, "no screenshot")
                     } else {
                         exchange.responseHeaders.add("Content-Type", "image/png")
+                        exchange.responseHeaders.add("Cache-Control", "no-store")
                         exchange.sendResponseHeaders(200, bytes.size.toLong())
                         exchange.responseBody.use { it.write(bytes) }
                     }
                 }
                 path == "/" || path == "/index.html" -> {
-                    val html = ResourceLoader.readText("viewer/index.html")
+                    val html = ResourceLoader.readText("index.html")
                     exchange.responseHeaders.add("Content-Type", "text/html; charset=utf-8")
                     val bytes = html.toByteArray()
                     exchange.sendResponseHeaders(200, bytes.size.toLong())
@@ -187,6 +243,7 @@ class ViewerHttpServer(
 
     private fun respondJson(exchange: HttpExchange, code: Int, json: String) {
         exchange.responseHeaders.add("Content-Type", "application/json; charset=utf-8")
+        exchange.responseHeaders.add("Cache-Control", "no-store")
         val bytes = json.toByteArray()
         exchange.sendResponseHeaders(code, bytes.size.toLong())
         exchange.responseBody.use { it.write(bytes) }
@@ -194,6 +251,7 @@ class ViewerHttpServer(
 
     private fun respondText(exchange: HttpExchange, code: Int, text: String) {
         exchange.responseHeaders.add("Content-Type", "text/plain; charset=utf-8")
+        exchange.responseHeaders.add("Cache-Control", "no-store")
         val bytes = text.toByteArray()
         exchange.sendResponseHeaders(code, bytes.size.toLong())
         exchange.responseBody.use { it.write(bytes) }

@@ -28,3 +28,11 @@ application {
 tasks.test {
     useJUnitPlatform()
 }
+
+sourceSets {
+    main {
+        resources {
+            srcDir("../viewer")
+        }
+    }
+}

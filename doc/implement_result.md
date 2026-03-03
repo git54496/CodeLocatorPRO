@@ -16,7 +16,7 @@
 - 已完成：`/Users/yebingyue/code/baron/CodeLocatorMCP/doc/tech_plan.md` 已替换为 MCP+Skill 一体化版本。
 
 ### Phase 1 统一内核模块
-- 已完成：新增模块 `/Users/yebingyue/code/baron/CodeLocatorMCP/CodeLocatorMCPAdapter`。
+- 已完成：新增模块 `/Users/yebingyue/code/baron/CodeLocatorMCP/mcp`。
 - 已完成：CLI 子命令实现（`mcp / grab live / grab file / grabs list / viewer open / inspect *`）。
 - 已完成：抓取协议链路（adb broadcast、Base64/GZIP、FP/data 分支）与 `.codeLocator` 文件解析。
 - 已完成：本地存储协议 `~/.codeLocator_mcp/grabs/<grab_id>/`。
@@ -46,7 +46,7 @@
 ## 3. 已验证结果（本地执行）
 
 - 构建与测试：
-  - 在 `CodeLocatorMCPAdapter` 执行 `./gradlew test installDist --no-daemon`，`BUILD SUCCESSFUL`。
+  - 在 `mcp` 执行 `./gradlew test installDist --no-daemon`，`BUILD SUCCESSFUL`。
 - CLI 冒烟：
   - `grabs list --json`：成功返回历史抓取列表。
   - `grab file --json`：成功加载本地历史 `.codeLocator`，返回新 `grab_id`。

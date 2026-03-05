@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-ROOT_DIR="/Users/yebingyue/code/baron/CodeLocatorPRO"
+SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" >/dev/null 2>&1 && pwd)"
+ROOT_DIR="$SCRIPT_DIR"
 ADAPTER_DIR="$ROOT_DIR/adapter"
-BIN="$ADAPTER_DIR/build/install/codelocator-adapter/bin/codelocator-adapter"
 PORT="${1:-49622}"
 GRAB_ID="${2:-}"
 
@@ -13,8 +13,20 @@ echo "Building adapter..."
   ./gradlew installDist --no-daemon
 )
 
-if [[ ! -x "$BIN" ]]; then
-  echo "Build finished but viewer binary is missing: $BIN"
+BIN=""
+for candidate in \
+  "$ADAPTER_DIR/build/install/grab/bin/grab" \
+  "$ADAPTER_DIR/build/install/codelocator-adapter/bin/grab" \
+  "$ADAPTER_DIR/build/install/codelocator-adapter/bin/codelocator-adapter"
+do
+  if [[ -x "$candidate" ]]; then
+    BIN="$candidate"
+    break
+  fi
+done
+
+if [[ -z "$BIN" ]]; then
+  echo "Build finished but viewer binary is missing under $ADAPTER_DIR/build/install"
   exit 1
 fi
 

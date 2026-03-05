@@ -2,22 +2,21 @@ package com.bytedance.tools.codelocator.adapter
 
 object AdapterCli {
     fun run(args: Array<String>, service: AdapterService, viewerManager: ViewerManager): Int {
-        if (args.isEmpty()) {
-            printUsage()
-            return 0
-        }
-
         return try {
-            when (args[0]) {
+            val commandArgs = if (args.isEmpty()) listOf("live") else args.toList()
+            when (commandArgs[0]) {
                 "mcp" -> {
                     McpStdioServer(service).run()
                     0
                 }
 
-                "grab" -> runGrab(args.drop(1), service)
-                "grabs" -> runGrabs(args.drop(1), service)
-                "viewer" -> runViewer(args.drop(1), service, viewerManager)
-                "inspect" -> runInspect(args.drop(1), service)
+                // Backward compatibility: keep support for "grab grab live".
+                "grab" -> if (commandArgs.size == 1) runGrab(listOf("live"), service) else runGrab(commandArgs.drop(1), service)
+                "live", "file" -> runGrab(commandArgs, service)
+                "list" -> runGrabs(emptyList(), service)
+                "grabs" -> runGrabs(commandArgs.drop(1), service)
+                "viewer" -> runViewer(commandArgs.drop(1), service, viewerManager)
+                "inspect" -> runInspect(commandArgs.drop(1), service)
                 else -> {
                     printUsage()
                     1
@@ -60,7 +59,7 @@ object AdapterCli {
     }
 
     private fun runGrabs(args: List<String>, service: AdapterService): Int {
-        if (args.firstOrNull() != "list") {
+        if (args.isNotEmpty() && args.firstOrNull() != "list") {
             printUsage()
             return 1
         }
@@ -144,16 +143,21 @@ object AdapterCli {
     private fun printUsage() {
         println(
             """
-            codelocator-adapter usage:
-              codelocator-adapter mcp
-              codelocator-adapter grab live --device-serial <optional> --json
-              codelocator-adapter grab file --path <optional> --json
-              codelocator-adapter grabs list --json
-              codelocator-adapter viewer open --grab-id <id> --json
-              codelocator-adapter viewer serve --port <port>
-              codelocator-adapter inspect view-data --grab-id <id> --mem-addr <addr> --json
-              codelocator-adapter inspect class-info --grab-id <id> --mem-addr <addr> --json
-              codelocator-adapter inspect touch --grab-id <id> --json
+            grab usage:
+              grab                            # default: grab live
+              grab live --device-serial <optional>
+              grab file --path <optional>
+              grab list
+              grab viewer open --grab-id <id>
+              grab viewer serve --port <port>
+              grab inspect view-data --grab-id <id> --mem-addr <addr>
+              grab inspect class-info --grab-id <id> --mem-addr <addr>
+              grab inspect touch --grab-id <id>
+              grab mcp
+
+            legacy compatibility:
+              grab grab live
+              grab grabs list
             """.trimIndent()
         )
     }

@@ -23,6 +23,7 @@ kotlin {
 
 application {
     mainClass.set("com.bytedance.tools.codelocator.adapter.MainKt")
+    applicationName = "grab"
 }
 
 tasks.test {

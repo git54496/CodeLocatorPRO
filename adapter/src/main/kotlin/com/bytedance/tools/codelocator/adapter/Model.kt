@@ -109,6 +109,11 @@ data class ViewerOpenResult(
     val grabId: String?
 )
 
+data class GrabWithViewerResult(
+    val grab: GrabMeta,
+    val viewer: ViewerOpenResult
+)
+
 data class ParsedCodeLocatorFile(
     val appJson: String,
     val imageBytes: ByteArray,

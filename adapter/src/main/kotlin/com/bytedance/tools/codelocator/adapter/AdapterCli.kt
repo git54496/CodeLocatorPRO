@@ -3,9 +3,9 @@ package com.bytedance.tools.codelocator.adapter
 object AdapterCli {
     fun run(args: Array<String>, service: AdapterService, viewerManager: ViewerManager): Int {
         return try {
-            val commandArgs = if (args.isEmpty()) listOf("live") else args.toList()
+            val commandArgs = normalizeCommandArgs(args.toList())
             when (commandArgs[0]) {
-                "version", "-v", "--version" -> {
+                "version", "--version" -> {
                     println(BuildInfo.version)
                     0
                 }
@@ -40,33 +40,25 @@ object AdapterCli {
     }
 
     private fun runGrab(args: List<String>, service: AdapterService): Int {
-        if (args.isEmpty()) {
+        val command = parseGrabCommand(args)
+        if (command == null) {
             printUsage()
             return 1
         }
-        return when (args[0]) {
-            "help", "-h", "--help" -> {
+        return when (command.mode) {
+            "help" -> {
                 printUsage()
                 0
             }
             "live" -> {
-                val device = readOption(args, "--device-serial")
-                val result = service.grabLive(device)
-                println(Jsons.toJson(result))
-                if (result.success) 0 else 1
+                val result = service.grabLive(command.deviceSerial)
+                printGrabResult(result, command.autoOpenViewer, service)
             }
-
             "file" -> {
-                val path = readOption(args, "--path")
-                val result = service.grabFromFile(path)
-                println(Jsons.toJson(result))
-                if (result.success) 0 else 1
+                val result = service.grabFromFile(command.path)
+                printGrabResult(result, command.autoOpenViewer, service)
             }
-
-            else -> {
-                printUsage()
-                1
-            }
+            else -> 1
         }
     }
 
@@ -165,16 +157,43 @@ object AdapterCli {
         return readOption(args, key) ?: throw AdapterException("INVALID_ARGUMENT", "Missing option: $key")
     }
 
+    private fun printGrabResult(result: ToolResult<GrabMeta>, autoOpenViewer: Boolean, service: AdapterService): Int {
+        if (!result.success || !autoOpenViewer) {
+            println(Jsons.toJson(result))
+            return if (result.success) 0 else 1
+        }
+
+        val grab = result.data ?: throw AdapterException("INTERNAL_ERROR", "grab result missing data")
+        val viewerResult = service.openViewer(result.grabId ?: grab.grabId)
+        if (!viewerResult.success) {
+            println(Jsons.toJson(viewerResult))
+            return 1
+        }
+
+        val viewer = viewerResult.data ?: throw AdapterException("INTERNAL_ERROR", "viewer result missing data")
+        println(
+            Jsons.toJson(
+                ToolResult(
+                    success = true,
+                    data = GrabWithViewerResult(grab = grab, viewer = viewer),
+                    grabId = result.grabId ?: grab.grabId
+                )
+            )
+        )
+        return 0
+    }
+
     private fun printUsage() {
         println(
             """
             grab usage:
               grab                            # default: grab live
+              grab -v                         # default: grab live --viewer
               grab --version
               grab --help
               grab help
-              grab live --device-serial <optional>
-              grab file --path <optional>
+              grab live --device-serial <optional> [--viewer|-v]
+              grab file --path <optional> [--viewer|-v]
               grab list
               grab viewer open --grab-id <id>
               grab viewer serve --port <port>
@@ -190,4 +209,38 @@ object AdapterCli {
             """.trimIndent()
         )
     }
+
+    internal fun normalizeCommandArgs(args: List<String>): List<String> {
+        if (args.isEmpty()) return listOf("live")
+        return if (isViewerFlag(args.first())) listOf("live") + args else args
+    }
+
+    internal fun parseGrabCommand(args: List<String>): ParsedGrabCommand? {
+        if (args.isEmpty()) return null
+        if (args.any(::isHelpFlag)) return ParsedGrabCommand(mode = "help")
+        return when (args[0]) {
+            "live" -> ParsedGrabCommand(
+                mode = "live",
+                deviceSerial = readOption(args, "--device-serial"),
+                autoOpenViewer = args.any(::isViewerFlag)
+            )
+            "file" -> ParsedGrabCommand(
+                mode = "file",
+                path = readOption(args, "--path"),
+                autoOpenViewer = args.any(::isViewerFlag)
+            )
+            else -> null
+        }
+    }
+
+    private fun isViewerFlag(arg: String): Boolean = arg == "-v" || arg == "--viewer"
+
+    private fun isHelpFlag(arg: String): Boolean = arg == "help" || arg == "-h" || arg == "--help"
+
+    internal data class ParsedGrabCommand(
+        val mode: String,
+        val deviceSerial: String? = null,
+        val path: String? = null,
+        val autoOpenViewer: Boolean = false
+    )
 }

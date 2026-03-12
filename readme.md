@@ -55,6 +55,12 @@ grab
 
 `grab` 无参数时默认等价于 `grab live`。
 
+如果你希望抓取成功后自动打开 Viewer，可以直接执行：
+
+```bash
+grab -v
+```
+
 ## 目录结构
 
 - `adapter`
@@ -85,9 +91,12 @@ BIN="./adapter/build/install/grab/bin/grab"
 # 实时抓取（可选 --device-serial）
 $BIN
 $BIN live --device-serial <optional>
+$BIN -v
+$BIN live --device-serial <optional> --viewer
 
 # 从文件导入抓取（可选 --path）
 $BIN file --path <optional>
+$BIN file --path <optional> --viewer
 
 # 列出抓取记录
 $BIN list
@@ -129,8 +138,8 @@ $BIN inspect compose-node --grab-id <grab_id> --node-id <compose_node_id_or_comp
 
 当前仓库已引入统一版本文件 `VERSION`，`grab --version` 与 adapter 构建版本会保持一致。正式发布 Homebrew 升级链路时，按以下流程操作：
 
-1. 更新 `VERSION`，推送 `codelocatorpro`，并创建对应 tag，例如 `v0.2.0`。
-2. 进入 tap 仓库 `homebrew-codelocatorpro`，执行 `./scripts/update_grab_formula.sh 0.2.0`。
+1. 更新 `VERSION`，推送 `codelocatorpro`，并创建对应 tag，例如 `v0.2.1`。
+2. 进入 tap 仓库 `homebrew-codelocatorpro`，执行 `./scripts/update_grab_formula.sh 0.2.1`。
 3. 提交并推送 tap 仓库中的 `Formula/grab.rb`。
 4. 用户执行 `brew update && brew upgrade grab`。
 
